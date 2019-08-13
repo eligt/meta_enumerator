@@ -189,6 +189,49 @@ public:
 		return *this;
 	}
 	
+	inline constexpr EnumeratorDataContainer operator^(const EnumeratorDataContainer& other) const
+	{
+		EnumeratorDataContainer r;
+		
+		for (int i = 0; i < OPERAND_COUNT; i++)
+		{
+			(((OperandType*)r._data)[i]) = (((const OperandType*)_data)[i]) ^ (((const OperandType*)other._data)[i]);
+		}
+		
+		return r;
+	}
+	
+	inline constexpr EnumeratorDataContainer operator^(OperandType other) const
+	{
+		EnumeratorDataContainer r;
+		
+		(((const OperandType*)r._data)[0]) = (((const OperandType*)_data)[0]) ^ (other);
+		
+		for (int i = 1; i < OPERAND_COUNT; i++)
+		{
+			(((OperandType*)r._data)[i]) = (((const OperandType*)_data)[i]);
+		}
+		
+		return r;
+	}
+	
+	inline constexpr EnumeratorDataContainer operator^=(const EnumeratorDataContainer& other)
+	{
+		for (int i = 0; i < OPERAND_COUNT; i++)
+		{
+			(((OperandType*)_data)[i]) = (((const OperandType*)_data)[i]) ^ (((const OperandType*)other._data)[i]);
+		}
+		
+		return *this;
+	}
+	
+	inline constexpr EnumeratorDataContainer operator^=(OperandType other)
+	{
+		(((OperandType*)_data)[0]) = (((const OperandType*)_data)[0]) ^ (other);
+		
+		return *this;
+	}
+	
 	inline constexpr EnumeratorDataContainer operator<<(size_t bits) const
 	{
 		if (bits == 0)
@@ -338,12 +381,6 @@ public:
 	MemoryType _data[ARRAY_SIZE];
 };
 
-template <typename EnumType>
-class EnumeratorStorage
-{
-public:
-	using DataType = size_t;
-};
 
 template <typename EnumType, typename DataType, size_t bit_length, bool isFlags>
 class EnumeratorConverter
@@ -899,7 +936,7 @@ template <typename EnumType, bool isFlags = false, size_t max_value = std::numer
 class EnumeratorMetaDefault
 {
 public:
-	using DataType = typename EnumeratorStorage<EnumType>::DataType;
+	using DataType = size_t;
 	using Converter = EnumeratorConverter<EnumType, DataType, max_value, isFlags>;
 	using MaskType = EnumeratorMask<EnumType, max_value>;
 	using MaskDataType = typename MaskType::DataType;
