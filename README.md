@@ -4,6 +4,7 @@ Meta Enumerator is a modern, single-header C++11 library to enhance enumerator c
 The enum masks are statically checked, type safe and statically allocated for better performance. Also, when using `enum classes`, Mask type can be forward declared (like the `enum class` itself) and therefore used in function parameters before the enum is fully defined.
 
 - [Features](#Features)
+- [Missing Features](#Missing-Features)
 - [Installation](#Installation)
 - [Usage](#Usage)
 	- [Forward Declaration](#Forward-Declaration)
@@ -24,6 +25,14 @@ The enum masks are statically checked, type safe and statically allocated for be
 - Opted-in support for automatic mathematical and logical operations on the enum values
 - Ability to customize implementation to attach arbitrary meta-data to each enum value
 - **NO MACROS!** I really dislike how many C++ enum utilities make heavy usage of macros, which is another reason why I wrote this library
+
+## Missing Features
+
+Things I'd like to implement at some point but are not there yet.
+
+- Endianness awareness; make the library work on Big Endian systems
+- Tests! Right now there are none, although I've tested this quite a bit as I actively use it in my game
+- Samples and Documentation on how to modify some of the behaviors
 
 
 ## Installation
