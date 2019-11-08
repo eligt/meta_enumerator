@@ -1,5 +1,5 @@
 # Meta Enumerator
-Meta Enumerator is a modern, single-header C++11 library to enhance enumerator capabilities and ease enum operations. The primary feature is enabling automatic generation of arbitrarily large (bitwise) masks based off of regular, sequential enum values - useful when you want to be able to enumerate values while also using them as flags.
+Meta Enumerator is a modern, single-header C++14 library to enhance enumerator capabilities and ease enum operations. The primary feature is enabling automatic generation of arbitrarily large (bitwise) masks based off of regular, sequential enum values - useful when you want to be able to enumerate values while also using them as flags.
 
 The enum masks are statically checked, type safe and statically allocated for better performance. Also, when using `enum classes`, Mask type can be forward declared (like the `enum class` itself) and therefore used in function parameters before the enum is fully defined.
 
