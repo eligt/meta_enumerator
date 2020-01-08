@@ -79,7 +79,7 @@ public:
 	static constexpr const bool string_operators = true;
 	static constexpr const TargetType MAX_VALUE = TargetType::MAX;
 	
-	static constexpr const StringEntry string_values[]{
+	static constexpr const EnumEntry enum_entries[]{
 		{ TargetType::ENEMY_ALIVE, "ENEMY_ALIVE" },
 		{ TargetType::ENEMY_CORPSE, "ENEMY_CORPSE" },
 		{ TargetType::ENEMY_SPOT, "ENEMY_SPOT" },
@@ -197,7 +197,7 @@ public:
 	static constexpr const bool string_operators = true;
 	static constexpr const TargetType MAX_VALUE = TargetType::MAX;
 	
-	static constexpr const StringEntry string_values[]{
+	static constexpr const EnumEntry enum_entries[]{
 		{ TargetType::ENEMY, "ENEMY" },
 		{ TargetType::ENEMY_ALIVE, "ENEMY_ALIVE" },
 		{ TargetType::ENEMY_CORPSE, "ENEMY_CORPSE" },

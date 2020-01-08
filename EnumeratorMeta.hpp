@@ -439,9 +439,11 @@ template <typename EnumType>
 class EnumeratorMeta
 {
 public:
-	static const bool logic_operators = false;
-	static const bool math_operators = false;
-	static const bool string_operators = false;
+	static constexpr const bool logic_operators = false;
+	static constexpr const bool math_operators = false;
+	static constexpr const bool string_operators = false;
+	static constexpr const bool bitwise_conversion = false;
+	static constexpr const size_t MAX_VALUE = 0;
 };
 
 template <typename EnumType>
@@ -450,8 +452,8 @@ class EnumeratorSerializer
 public:
 	static inline constexpr const char* get_name(EnumType value)
 	{
-		auto it = std::cbegin(EnumeratorMeta<EnumType>::string_values);
-		auto end = std::cend(EnumeratorMeta<EnumType>::string_values);
+		auto it = std::begin(EnumeratorMeta<EnumType>::enum_entries);
+		auto end = std::end(EnumeratorMeta<EnumType>::enum_entries);
 		
 		for (; it != end; ++it)
 		{
@@ -466,8 +468,8 @@ public:
 	
 	static inline constexpr const char* get_label(EnumType value)
 	{
-		auto it = std::cbegin(EnumeratorMeta<EnumType>::string_values);
-		auto end = std::cend(EnumeratorMeta<EnumType>::string_values);
+		auto it = std::begin(EnumeratorMeta<EnumType>::enum_entries);
+		auto end = std::end(EnumeratorMeta<EnumType>::enum_entries);
 		
 		for (; it != end; ++it)
 		{
@@ -482,8 +484,8 @@ public:
 	
 	static inline constexpr EnumType get_value(const char* name)
 	{
-		auto it = std::cbegin(EnumeratorMeta<EnumType>::string_values);
-		auto end = std::cend(EnumeratorMeta<EnumType>::string_values);
+		auto it = std::begin(EnumeratorMeta<EnumType>::enum_entries);
+		auto end = std::end(EnumeratorMeta<EnumType>::enum_entries);
 		
 		for (; it != end; ++it)
 		{
@@ -943,15 +945,15 @@ public:
 	using MaskConverter = EnumeratorConverter<EnumType, MaskDataType, max_value, isFlags>;
 	static constexpr const bool bitwise_conversion = !isFlags;
 	
-	class StringEntry
+	class EnumEntry
 	{
 	public:
 		EnumType value;
 		const char* name;
 		const char* label;
 		
-		constexpr StringEntry(EnumType val, const char* name_) : value(val), name(name_), label("") { }
-		constexpr StringEntry(EnumType val, const char* name_, const char* label_) : value(val), name(name_), label(label_) { }
+		constexpr EnumEntry(EnumType val, const char* name_) : value(val), name(name_), label("") { }
+		constexpr EnumEntry(EnumType val, const char* name_, const char* label_) : value(val), name(name_), label(label_) { }
 		
 		EnumType get_value() const { return value; }
 		const char* get_name() const { return name; }
