@@ -92,6 +92,12 @@ public:
 }
 ```
 
+You also need to add this somewhere in your `.cpp` file to ensure you don't get linking errors:
+
+```cpp
+constexpr EnumeratorMeta<TargetType>::EnumEntry EnumeratorMeta<TargetType>::enum_entries[];
+```
+
 This is how you'd create a mask:
 ```cpp
 // creates a mask named accepted_targets
