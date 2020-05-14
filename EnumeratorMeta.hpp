@@ -667,6 +667,31 @@ public:
 		return (m_data & data) != 0;
 	}
 	
+	void set(EnumType bit, bool value)
+	{
+		auto val = Meta::MaskConverter::get_data(bit);
+		if (value)
+			m_data |= val;
+		else
+			m_data &= ~val;
+	}
+	
+	void set(EnumeratorMask mask, bool value)
+	{
+		if (value)
+			m_data |= mask.m_data;
+		else
+			m_data &= ~mask.m_data;
+	}
+	
+	void set(DataType data, bool value)
+	{
+		if (value)
+			m_data |= data;
+		else
+			m_data &= ~data;
+	}
+	
 	inline constexpr EnumeratorMask operator|(EnumType a) const
 	{
 		auto data = Meta::MaskConverter::get_data(a);
