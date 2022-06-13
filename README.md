@@ -204,11 +204,9 @@ public:
 	static constexpr const TargetType MAX_VALUE = TargetType::MAX;
 	
 	static constexpr const EnumEntry enum_entries[]{
-		{ TargetType::ENEMY, "ENEMY" },
 		{ TargetType::ENEMY_ALIVE, "ENEMY_ALIVE" },
 		{ TargetType::ENEMY_CORPSE, "ENEMY_CORPSE" },
 		{ TargetType::ENEMY_SPOT, "ENEMY_SPOT" },
-		{ TargetType::ALLY, "ALLY" },
 		{ TargetType::ALLY_ALIVE, "ALLY_ALIVE" },
 		{ TargetType::ALLY_CORPSE, "ALLY_CORPSE" },
 		{ TargetType::ALLY_SPOT, "ALLY_SPOT" }
