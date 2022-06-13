@@ -1,5 +1,5 @@
-#ifndef ELIGT_ENUMERATORMETA_H
-#define ELIGT_ENUMERATORMETA_H
+#ifndef ELIGT_METAENUMERATOR_H
+#define ELIGT_METAENUMERATOR_H
 
 #include <stddef.h>
 #include <sstream> 
@@ -8,8 +8,8 @@
 #include <limits>
 
 
-#ifdef ENUMERATORMETA_NAMESPACE
-namespace ENUMERATORMETA_NAMESPACE
+#ifdef METAENUMERATOR_NAMESPACE
+namespace METAENUMERATOR_NAMESPACE
 {
 #endif
 
@@ -1396,7 +1396,7 @@ public:
 	};
 };
 
-#ifdef ENUMERATORMETA_NAMESPACE
+#ifdef METAENUMERATOR_NAMESPACE
 }
 #endif
 

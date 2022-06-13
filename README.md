@@ -37,14 +37,14 @@ Things I'd like to implement at some point but are not there yet.
 
 ## Installation
 
-Just copy `EnumeratorMeta.hpp` to your project and include it like the following:
+Just copy `MetaEnumerator.hpp` to your project and include it like the following:
 
 ```cpp
-#define ENUMERATORMETA_NAMESPACE MyRootNamespace
-#include "EnumeratorMeta.hpp"
+#define METAENUMERATOR_NAMESPACE MyRootNamespace
+#include "MetaEnumerator.hpp"
 ```
 
-`MyRootNamespace` is the root namespace in your project. Define this for quality of life, otherwise you'd be required to close/open namespaces every time you need to define the template specializations for your own enum types. If you don't use a namespace (i.e. your code lives in the global namespace) then you can remove the `#define ENUMERATORMETA_NAMESPACE MyRootNamespace` line entirely.
+`MyRootNamespace` is the root namespace in your project. Define this for quality of life, otherwise you'd be required to close/open namespaces every time you need to define the template specializations for your own enum types. If you don't use a namespace (i.e. your code lives in the global namespace) then you can remove the `#define METAENUMERATOR_NAMESPACE MyRootNamespace` line entirely.
 
 
 ## Usage
@@ -52,8 +52,8 @@ Just copy `EnumeratorMeta.hpp` to your project and include it like the following
 This is how you define the meta information on your enum:
 
 ```cpp
-#define ENUMERATORMETA_NAMESPACE MyRootNamespace
-#include "EnumeratorMeta.hpp"
+#define METAENUMERATOR_NAMESPACE MyRootNamespace
+#include "MetaEnumerator.hpp"
 
 namespace MyRootNamespace
 {
@@ -176,8 +176,8 @@ using TargetTypeMask = EnumeratorMask<TargetType, 100>; // store up to 100 diffe
 You also need to specify this when adding the meta information in the specialization:
 
 ```cpp
-#define ENUMERATORMETA_NAMESPACE MyRootNamespace
-#include "EnumeratorMeta.hpp"
+#define METAENUMERATOR_NAMESPACE MyRootNamespace
+#include "MetaEnumerator.hpp"
 
 namespace MyRootNamespace
 {
@@ -216,6 +216,6 @@ public:
 }
 ```
 
-This is the reason you have to specify the `MAX_VALUE` constant in the specialization - this way, if you keep adding values to the enum and forget to make the mask large enough, the system can check (at compile time) and ensure that your maximum value can fit inside the mask.
+This is one of the reasons you have to specify the `MAX_VALUE` constant in the specialization - this way, if you keep adding values to the enum and forget to make the mask large enough, the system can check (at compile time) and ensure that your maximum value can fit inside the mask.
 
-There's no limit to the amount of flags, other than of course the available RAM. If you request 100 bits, that would require 13 bytes of memory, but right now storage is aligned to an integer so, the Mask will occupy 16 bytes of memory. I will probably remove this alignment later, it was supposed to improve performance but I don't believe it does, I haven't had time to test.
+There's no limit to the amount of flags, other than of course the available RAM. If you request 100 bits, that would require 13 bytes of memory, but right now storage is aligned to an integer so, the Mask will occupy 16 bytes of memory.
