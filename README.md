@@ -24,6 +24,8 @@ The enum masks are statically checked, type safe and statically allocated for be
 - Opted-in conversion to and from string (you need to specify the strings though, see [Usage](#usage))
 - Opted-in support for automatic mathematical and logical operations on the enum values
 - Ability to customize implementation to attach arbitrary meta-data to each enum value
+- Enum inheritance, i.e. static extension of an enum with another enum at compile time
+- Enum extensions, i.e. dynamic extension of an enum with another enum at run time
 - **NO MACROS!** I really dislike how many C++ enum utilities make heavy usage of macros, which is another reason why I wrote this library
 
 ## Missing Features
@@ -219,3 +221,12 @@ public:
 This is one of the reasons you have to specify the `MAX_VALUE` constant in the specialization - this way, if you keep adding values to the enum and forget to make the mask large enough, the system can check (at compile time) and ensure that your maximum value can fit inside the mask.
 
 There's no limit to the amount of flags, other than of course the available RAM. If you request 100 bits, that would require 13 bytes of memory, but right now storage is aligned to an integer so, the Mask will occupy 16 bytes of memory.
+
+
+### Inheritance and Extension
+
+Inheriting from an enum requires either defining a specially named value in your parent enum or a special field in its `EnumeratorMeta` specialization. Then, in the child enum, you set the first value to the value returned by the `Inheritor` type from the `EnumeratorMeta` (which corresponds to `EnumeratorInheritor`). You can then cast any of the child enum values to the parent enum using the `unary +` operator. 
+
+You can better see the requirements for this in the sample under [samples/extending.cpp](samples/extending.cpp) file.
+
+Please note that inheritance and extension are still incomplete, for instance, string conversion doesn't work on inheritance if you convert the value to the parent enum and it doesn't work at all for extensions as extensions don't yet support passing meta data for each newly registered value. I will add these features at a later point.
