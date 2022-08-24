@@ -20,7 +20,6 @@ public:
 	template <typename IntType = short int, typename ByteType = char>
 	inline constexpr static bool isBigEndian()
 	{
-		static_assert(sizeof(IntType) != sizeof(ByteType), "isBigEndian() : IntType and ByteType need to be of different sizes.");
 		static_assert(sizeof(IntType) > sizeof(ByteType), "isBigEndian() : IntType must be of size greater than ByteType.");
 		
 		IntType number = 0x1;
@@ -602,11 +601,12 @@ public:
 		static_assert(sizeof(T) == 0, "EnumeratorExtender requires the EnumeratorMeta to define an enum_extension variable or the enum to contain an EXTENSION value.");
 	}
 	
+	template <typename T = EnumType>
 	static EnumType extend()
 	{
 		static EnumType enum_extension = get_enum_extension();
 		
-		enum_extension += 1;
+		enum_extension = static_cast<EnumType>(static_cast<DataType>(enum_extension) + 1);
 		
 		if (static_cast<DataType>(enum_extension) <= max_enum_value)
 			return enum_extension;
