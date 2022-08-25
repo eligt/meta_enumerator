@@ -25,7 +25,7 @@ The enum masks are statically checked, type safe and statically allocated for be
 - Opted-in support for automatic mathematical and logical operations on the enum values
 - Ability to customize implementation to attach arbitrary meta-data to each enum value
 - Enum inheritance, i.e. static extension of an enum with another enum at compile time
-- Enum extensions, i.e. dynamic extension of an enum with another enum at run time
+- Enum extensions, i.e. dynamic extension of an enum with new values at run time
 - **NO MACROS!** I really dislike how many C++ enum utilities make heavy usage of macros, which is another reason why I wrote this library
 
 ## Missing Features
