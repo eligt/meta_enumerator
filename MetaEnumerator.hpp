@@ -393,12 +393,79 @@ class EnumeratorMeta
 {
 };
 
-template <typename EnumType, typename EntryType_ = typename std::remove_const< typename std::remove_reference< typename std::remove_pointer< decltype(EnumeratorMeta<EnumType>::enum_entries[0]) >::type >::type >::type >
-class EnumeratorInfo
+template <typename EnumType>
+class EnumeratorInherited
 {
 public:
-	using EntryType = EntryType_;
+	using InheritedType = EnumType;
+};
+
+template<typename T, typename = void>
+struct enumerator_has_extension_meta : std::false_type { };
+template<typename T>
+struct enumerator_has_extension_meta<T, decltype((void)EnumeratorMeta<T>::enum_extension, void())> : std::true_type { };
+
+template<typename T, typename = void>
+struct enumerator_has_extension_value : std::false_type { };
+template<typename T>
+struct enumerator_has_extension_value<T, decltype((void)T::EXTENSION, void())> : std::true_type { };
+
+template<typename T>
+struct enumerator_has_extension : std::integral_constant<bool, enumerator_has_extension_meta<T>::value || enumerator_has_extension_value<T>::value> { };
+
+template<typename T, typename = void>
+struct enumerator_has_inheritance_meta : std::false_type { };
+template<typename T>
+struct enumerator_has_inheritance_meta<T, decltype((void)EnumeratorMeta<T>::enum_inheritance, void())> : std::true_type { };
+
+template<typename T, typename = void>
+struct enumerator_has_inheritance_value : std::false_type { };
+template<typename T>
+struct enumerator_has_inheritance_value<T, decltype((void)T::INHERITANCE, void())> : std::true_type { };
+
+template<typename T>
+struct enumerator_has_inheritance : std::integral_constant<bool, enumerator_has_inheritance_meta<T>::value || enumerator_has_inheritance_value<T>::value> { };
+
+template<typename T, typename = void>
+struct enumerator_has_base_type : std::false_type { };
+template<typename T>
+struct enumerator_has_base_type<T, decltype((void)typename EnumeratorMeta<T>::BaseEnumType(), void())> : std::true_type { };
+
+
+template <typename EnumType>
+class EnumeratorInfo
+{
+	template <typename>
+	friend class EnumeratorInfo;
+	
+protected:
+	using Meta = EnumeratorMeta<EnumType>;
+	using DataType = typename Meta::DataType;
+	using Extender = typename Meta::Extender;
+	using Inheritor = typename Meta::Inheritor;
+	
+public:
+	using EntryType = typename std::remove_const< typename std::remove_reference< typename std::remove_pointer< decltype(Meta::enum_entries[0]) >::type >::type >::type;
 	static constexpr const size_t ENTRY_COUNT = sizeof(EnumeratorMeta<EnumType>::enum_entries) / sizeof(EntryType);
+	
+	struct Result
+	{
+		friend class EnumeratorInfo;
+		
+	public:
+		constexpr Result() = default;
+		
+		constexpr explicit operator bool() const { return _ptr != nullptr; }
+		constexpr const EntryType& operator*() const { return *_ptr; }
+		constexpr const EntryType* operator->() { return _ptr; }
+		constexpr const EntryType* pointer() { return _ptr; }
+		
+	protected:
+		constexpr Result(const EntryType* entry) : _ptr{entry} {}
+		
+	protected:
+		const EntryType* _ptr{};
+	};
 	
 	struct Iterator
 	{
@@ -428,62 +495,63 @@ public:
 	static constexpr Iterator cbegin() { return Iterator(EnumeratorMeta<EnumType>::enum_entries); }
 	static constexpr Iterator cend() { return Iterator(EnumeratorMeta<EnumType>::enum_entries + ENTRY_COUNT);}
 	
-	static constexpr Iterator find(EnumType value)
+public:
+	static constexpr Result find(EnumType value)
 	{
-		auto it = findQuick(value);
-		if (it != cend())
-			return it;
+		auto result = findQuick(value);
+		if (result)
+			return result;
 		
 		return findSlow(value);
 	}
 	
-	static constexpr Iterator find(const char* name)
+	static constexpr Result find(const char* name)
 	{
-		auto it = cbegin();
-		auto end = cend();
+		Result result = findSelf(name);
+		if (result)
+			return result;
+		result = findInherited(name);
+		if (result)
+			return result;
+		result = findExtended(name);
+		if (result)
+			return result;
 		
-		for (; it != end; ++it)
-		{
-			auto&& entry = *it;
-			
-			if (entry.get_name() == name)
-				return Iterator(&entry);
-			else
-			{
-				if (name != nullptr && entry.get_name() != nullptr)
-				{
-					auto nameP = name;
-					auto itName = entry.get_name();
-					
-					while (*itName != '\0' && *nameP != '\0' && *itName == *nameP)
-					{
-						itName++;
-						nameP++;
-					}
-					
-					if (*itName == '\0' && *nameP == '\0')
-						return Iterator(&entry);
-				}
-			}
-		}
-		
-		return cend();
+		return {};
 	}
 	
 protected:
-	static constexpr Iterator findQuick(EnumType value)
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_base_type<T>::value, int>::type = 0>
+	static constexpr size_t getQuickIndex(EnumType value)
 	{
-		// Return if the enum values aren't sequential, i.e. their values are already bitflags (isFlags parameter passed to EnumeratorMetaDefault was true)
-		if (!EnumeratorMeta<EnumType>::bitwise_conversion)
-			return cend();
+		using BaseMeta = EnumeratorMeta<typename EnumeratorMeta<T>::BaseEnumType>;
+		using BaseInheritor = typename BaseMeta::Inheritor;
+		auto dataValue = static_cast<DataType>(value);
+		auto dataMin = static_cast<DataType>(BaseInheritor::get_inheritance());
+		auto index = static_cast<size_t>(dataValue - dataMin) + 1;
 		
-		auto index = static_cast<size_t>(value);
+		return index;
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_base_type<T>::value, int>::type = 0>
+	static constexpr size_t getQuickIndex(EnumType value)
+	{
+		auto dataValue = static_cast<DataType>(value);
+		auto dataMin = static_cast<DataType>(Meta::MIN_VALUE);
+		auto index = static_cast<size_t>(dataValue - dataMin);
+		
+		return index;
+	}
+	
+	static constexpr Result findQuickSelf(EnumType value)
+	{
+		auto index = getQuickIndex(value);
 		
 		if (index < ENTRY_COUNT)
 		{
 			auto&& entry = EnumeratorMeta<EnumType>::enum_entries[index];
 			if (entry.get_value() == value)
-				return Iterator(&entry);
+				return {&entry};
 		}
 		
 		// Special case if enum_entries skips the first 0-valued entry
@@ -491,13 +559,86 @@ protected:
 		{
 			auto&& entry = EnumeratorMeta<EnumType>::enum_entries[index - 1];
 			if (entry.get_value() == value)
-				return Iterator(&entry);
+				return {&entry};
 		}
 		
-		return cend();
+		return {};
 	}
 	
-	static constexpr Iterator findSlow(EnumType value)
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_inheritance<T>::value && !std::is_same<T, typename EnumeratorInherited<T>::InheritedType>::value, int>::type = 0>
+	static constexpr Result findQuickInherited(EnumType value)
+	{
+		using InheritedType = typename EnumeratorInherited<T>::InheritedType;
+		using InheritedInfo = EnumeratorInfo<InheritedType>;
+		
+		auto inheritance = Inheritor::get_inheritance();
+		auto dataValue = static_cast<DataType>(value);
+		auto dataInheritance = static_cast<DataType>(inheritance);
+		
+		if (dataValue >= dataInheritance)
+		{
+			return { InheritedInfo::find(static_cast<InheritedType>(value)).pointer() };
+		}
+		
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_inheritance<T>::value || std::is_same<T, typename EnumeratorInherited<T>::InheritedType>::value, int>::type = 0>
+	static constexpr Result findQuickInherited(EnumType)
+	{
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr Result findQuickExtended(EnumType value)
+	{
+		auto extension = Extender::get_extension();
+		auto dataValue = static_cast<DataType>(value);
+		auto dataExtension = static_cast<DataType>(extension);
+		
+		if (dataValue >= dataExtension)
+		{
+			auto index = static_cast<size_t>(dataValue - dataExtension);
+			auto&& container = Extender::get_container();
+			
+			// Note: because of how enum extensions work, we don't need an equivalent findSlow() for extensions
+			if (index < container.ENTRY_COUNT)
+			{
+				auto&& entry = container.enum_entries[index];
+				if (entry.get_value() == value)
+					return {&entry};
+			}
+		}
+		
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr Result findQuickExtended(EnumType)
+	{	
+		return {};
+	}
+	
+	static constexpr Result findQuick(EnumType value)
+	{
+		// Return if the enum values aren't sequential, i.e. their values are already bitflags (isFlags parameter passed to EnumeratorMetaDefault was true)
+		if (!EnumeratorMeta<EnumType>::bitwise_conversion)
+			return {};
+		
+		Result result = findQuickSelf(value);
+		if (result)
+			return result;
+		result = findQuickInherited(value);
+		if (result)
+			return result;
+		result = findQuickExtended(value);
+		if (result)
+			return result;
+		
+		return {};
+	}
+	
+	static constexpr Result findSlow(EnumType value)
 	{
 		auto it = cbegin();
 		auto end = cend();
@@ -507,10 +648,90 @@ protected:
 			auto&& entry = *it;
 			
 			if (entry.get_value() == value)
-				return Iterator(&entry);
+				return {&entry};
 		}
 		
-		return cend();
+		return {};
+	}
+	
+	static constexpr bool matchEntry(const EntryType& entry, const char* name)
+	{
+		if (entry.get_name() == name)
+			return true;
+		else
+		{
+			if (name != nullptr && entry.get_name() != nullptr)
+			{
+				auto nameP = name;
+				auto itName = entry.get_name();
+				
+				while (*itName != '\0' && *nameP != '\0' && *itName == *nameP)
+				{
+					itName++;
+					nameP++;
+				}
+				
+				if (*itName == '\0' && *nameP == '\0')
+					return true;
+			}
+		}
+		
+		return false;
+	}
+	
+	static constexpr Result findSelf(const char* name)
+	{
+		auto it = cbegin();
+		auto end = cend();
+		
+		for (; it != end; ++it)
+		{
+			auto&& entry = *it;
+			
+			if (matchEntry(entry, name))
+				return {&entry};
+		}
+		
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_inheritance<T>::value && !std::is_same<T, typename EnumeratorInherited<T>::InheritedType>::value, int>::type = 0>
+	static constexpr Result findInherited(const char* name)
+	{
+		using InheritedType = typename EnumeratorInherited<T>::InheritedType;
+		using InheritedInfo = EnumeratorInfo<InheritedType>;
+		
+		return { InheritedInfo::find(name).pointer() };
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_inheritance<T>::value || std::is_same<T, typename EnumeratorInherited<T>::InheritedType>::value, int>::type = 0>
+	static constexpr Result findInherited(const char*)
+	{
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr Result findExtended(const char* name)
+	{
+		auto&& container = Extender::get_container();
+		Iterator it(container.enum_entries);
+		Iterator end(container.enum_entries + container.ENTRY_COUNT);
+		
+		for (; it != end; ++it)
+		{
+			auto&& entry = *it;
+			
+			if (matchEntry(entry, name))
+				return {&entry};
+		}
+		
+		return {};
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr Result findExtended(const char*)
+	{	
+		return {};
 	}
 };
 
@@ -525,7 +746,7 @@ public:
 	{
 		auto it = Info::find(value);
 		
-		if (it != Info::cend())
+		if (it)
 			return it->get_name();
 		
 		return nullptr;
@@ -535,7 +756,7 @@ public:
 	{
 		auto it = Info::find(value);
 		
-		if (it != Info::cend())
+		if (it)
 			return it->get_label();
 		
 		return nullptr;
@@ -545,7 +766,7 @@ public:
 	{
 		auto it = Info::find(name);
 		
-		if (it != Info::cend())
+		if (it)
 			return it->get_value();
 		
 		return EnumeratorMeta<EnumType>::Converter::get_value(0);
@@ -557,59 +778,75 @@ class EnumeratorExtender
 {
 protected:
 	using Meta = EnumeratorMeta<EnumType>;
+	using Info = EnumeratorInfo<EnumType>;
+	using EntryType = typename Info::EntryType;
 	using DataType = typename Meta::DataType;
-	static constexpr const DataType max_enum_value = static_cast<DataType>(std::numeric_limits<DataType>::max());
-	
-	template<typename T, typename = void>
-	struct has_extension_meta : std::false_type { };
-	template<typename T>
-	struct has_extension_meta<T, decltype((void)EnumeratorMeta<T>::enum_extension, void())> : std::true_type { };
-	
-	template<typename T, typename = void>
-	struct has_extension_value : std::false_type { };
-	template<typename T>
-	struct has_extension_value<T, decltype((void)T::EXTENSION, void())> : std::true_type { };
+	static constexpr const DataType max_enum_value = static_cast<DataType>(Meta::MAX_VALUE);
 	
 public:
-	template <typename T = EnumType, typename std::enable_if<has_extension_meta<T>::value || has_extension_value<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension<T>::value, int>::type = 0>
 	static constexpr bool has_extension()
 	{
 		return true;
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<!has_extension_meta<T>::value && !has_extension_value<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_extension<T>::value, int>::type = 0>
 	static constexpr bool has_extension()
 	{
 		return false;
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<has_extension_meta<T>::value, int>::type = 0>
-	static constexpr T get_enum_extension()
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension_meta<T>::value, int>::type = 0>
+	static constexpr T get_extension()
 	{
 		return static_cast<T>(Meta::enum_extension);
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<has_extension_value<T>::value && !has_extension_meta<T>::value, int>::type = 0>
-	static constexpr T get_enum_extension()
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension_value<T>::value && !enumerator_has_extension_meta<T>::value, int>::type = 0>
+	static constexpr T get_extension()
 	{
 		return static_cast<T>(EnumType::EXTENSION);
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<!has_extension_value<T>::value && !has_extension_meta<T>::value, int>::type = 0>
-	static constexpr EnumType get_enum_extension()
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr EnumType get_extension()
 	{
 		static_assert(sizeof(T) == 0, "EnumeratorExtender requires the EnumeratorMeta to define an enum_extension variable or the enum to contain an EXTENSION value.");
 	}
 	
-	template <typename T = EnumType>
-	static EnumType extend()
+	template<EnumType extension>
+	struct Container
 	{
-		static EnumType enum_extension = get_enum_extension();
+		static constexpr const size_t ENTRY_COUNT = max_enum_value - static_cast<DataType>(extension);
 		
-		enum_extension = static_cast<EnumType>(static_cast<DataType>(enum_extension) + 1);
+		EntryType enum_entries[ENTRY_COUNT]{};
+		EnumType enum_extension = extension;
+	};
+	
+	// Making this a templated function is an unfortunately required hack to build on MSVC
+	template<EnumType extension = get_extension()>
+	static Container<extension>& get_container()
+	{
+		static_assert (extension == get_extension(), "Do not pass a template parameter to this function, read comment above.");
+		static Container<extension> container{};
+		return container;
+	}
+	
+	template <typename... Types>
+	static EnumType extend(Types... entries)
+	{
+		auto&& container = get_container<get_extension()>();
 		
-		if (static_cast<DataType>(enum_extension) <= max_enum_value)
-			return enum_extension;
+		if (static_cast<DataType>(container.enum_extension) <= max_enum_value)
+		{
+			auto return_enum = container.enum_extension;
+			auto entry_index = static_cast<DataType>(return_enum) - static_cast<DataType>(get_extension());
+			container.enum_entries[entry_index] = EntryType{return_enum, entries...};
+			
+			container.enum_extension = static_cast<EnumType>(static_cast<DataType>(return_enum) + 1);
+			
+			return return_enum;
+		}
 		
 		// This is not ideal, if extensions overflow we should throw? or at least assert?
 		return static_cast<EnumType>(0);
@@ -622,43 +859,34 @@ class EnumeratorInheritor
 protected:
 	using Meta = EnumeratorMeta<EnumType>;
 	using DataType = typename Meta::DataType;
-	
-	template<typename T, typename = void>
-	struct has_inheritance_meta : std::false_type { };
-	template<typename T>
-	struct has_inheritance_meta<T, decltype((void)EnumeratorMeta<T>::enum_inheritance, void())> : std::true_type { };
-	
-	template<typename T, typename = void>
-	struct has_inheritance_value : std::false_type { };
-	template<typename T>
-	struct has_inheritance_value<T, decltype((void)T::INHERITANCE, void())> : std::true_type { };
+	static constexpr const DataType max_enum_value = static_cast<DataType>(Meta::MAX_VALUE);
 	
 public:
-	template <typename T = EnumType, typename std::enable_if<has_inheritance_meta<T>::value || has_inheritance_value<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_inheritance<T>::value, int>::type = 0>
 	static constexpr bool has_inheritance()
 	{
 		return true;
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<!has_inheritance_meta<T>::value && !has_inheritance_value<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_inheritance<T>::value, int>::type = 0>
 	static constexpr bool has_inheritance()
 	{
 		return false;
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<has_inheritance_meta<T>::value, int>::type = 0>
-	static constexpr T get_enum_inheritance()
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_inheritance_meta<T>::value, int>::type = 0>
+	static constexpr T get_inheritance()
 	{
 		return static_cast<T>(Meta::enum_inheritance);
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<has_inheritance_value<T>::value && !has_inheritance_meta<T>::value, int>::type = 0>
-	static constexpr T get_enum_inheritance()
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_inheritance_value<T>::value && !enumerator_has_inheritance_meta<T>::value, int>::type = 0>
+	static constexpr T get_inheritance()
 	{
 		return static_cast<T>(EnumType::INHERITANCE);
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<!has_inheritance_value<T>::value && !has_inheritance_meta<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_inheritance<T>::value, int>::type = 0>
 	static constexpr EnumType get_enum_inheritance()
 	{
 		static_assert(sizeof(T) == 0, "EnumeratorInheritor requires the EnumeratorMeta to define an enum_inheritance variable or the enum to contain an INHERITANCE value.");
@@ -666,7 +894,24 @@ public:
 	
 	static constexpr DataType inherit()
 	{
-		return static_cast<DataType>(get_enum_inheritance());
+		return static_cast<DataType>(get_inheritance());
+	}
+	
+	static constexpr DataType inheritMaximum()
+	{
+		return max_enum_value;
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr DataType inheritExtension()
+	{
+		return static_cast<DataType>(Meta::Extender::get_extension());
+	}
+	
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_extension<T>::value, int>::type = 0>
+	static constexpr DataType inheritExtension()
+	{
+		return inheritMaximum();
 	}
 };
 
@@ -677,19 +922,14 @@ protected:
 	using Meta = EnumeratorMeta<EnumType>;
 	using DataType = typename Meta::DataType;
 	
-	template<typename T, typename = void>
-	struct has_base_type : std::false_type { };
-	template<typename T>
-	struct has_base_type<T, decltype((void)typename EnumeratorMeta<T>::BaseEnumType(), void())> : std::true_type { };
-	
 public:
-	template <typename T = EnumType, typename std::enable_if<has_base_type<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<enumerator_has_base_type<T>::value, int>::type = 0>
 	static constexpr bool has_base()
 	{
 		return true;
 	}
 	
-	template <typename T = EnumType, typename std::enable_if<!has_base_type<T>::value, int>::type = 0>
+	template <typename T = EnumType, typename std::enable_if<!enumerator_has_base_type<T>::value, int>::type = 0>
 	static constexpr bool has_base()
 	{
 		return false;
@@ -847,12 +1087,14 @@ public:
 	template <typename T = DataType, typename std::enable_if<std::is_scalar<T>::value, int>::type = 0>
 	static inline constexpr EnumeratorMask all()
 	{
+		static_assert(sizeof(T) <= sizeof(DataType), "EnumeratorMask: T must fit inside DataType");
 		return EnumeratorMask(std::numeric_limits<T>::max());
 	}
 	
 	template <typename T = DataType, typename std::enable_if<!std::is_scalar<T>::value, int>::type = 0>
 	static inline constexpr EnumeratorMask all()
 	{
+		static_assert(sizeof(T) <= sizeof(DataType), "EnumeratorMask: T must fit inside DataType");
 		return EnumeratorMask(T::max());
 	}
 	
@@ -1063,7 +1305,7 @@ public:
 	
 	constexpr Iterator end() const
 	{
-		return Iterator(this, BIT_LENGTH + 1);
+		return Iterator(this, BIT_LENGTH);
 	}
 	
 	constexpr Iterator cbegin() const
@@ -1073,7 +1315,7 @@ public:
 	
 	constexpr Iterator cend() const
 	{
-		return Iterator(this, BIT_LENGTH + 1);
+		return Iterator(this, BIT_LENGTH);
 	}
 		
 	constexpr ReverseIterator rbegin() const
@@ -1157,53 +1399,67 @@ inline constexpr typename EnumeratorMeta<EnumType>::BaseEnumType operator+(EnumT
 	return static_cast<BaseType>(value);
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template<typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::Specializer::has_base(), int>::type = 0>
+inline constexpr bool operator==(EnumType value, typename EnumeratorMeta<EnumType>::BaseEnumType other)
+{
+	using BaseType = typename EnumeratorMeta<EnumType>::BaseEnumType;
+	return static_cast<BaseType>(value) == other;
+}
+
+template<typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::Specializer::has_base(), int>::type = 0>
+inline constexpr bool operator==(typename EnumeratorMeta<EnumType>::BaseEnumType other, EnumType value)
+{
+	using BaseType = typename EnumeratorMeta<EnumType>::BaseEnumType;
+	return static_cast<BaseType>(value) == other;
+}
+
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator+(EnumType a, EnumType b)
 {
 	using DataType = typename EnumeratorMeta<EnumType>::DataType;
 	return static_cast<EnumType>(static_cast<DataType>(a) + static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator+(EnumType a, DataType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) + b);
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType operator+(DataType a, EnumType b)
 {
 	return (a + static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator+=(EnumType& a, EnumType b)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) + static_cast<DataType>(b));
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator+=(EnumType& a, DataType b)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) + b);
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType& operator+=(DataType& a, EnumType b)
 {
 	return (a += static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator++(EnumType& a)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) + 1);
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType operator++(EnumType& a, int)
 {
 	EnumType ret = a;
@@ -1211,52 +1467,52 @@ inline constexpr DataType operator++(EnumType& a, int)
 	return ret;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator-(EnumType a, EnumType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) - static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator-(EnumType a, DataType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) - b);
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType operator-(DataType a, EnumType b)
 {
 	return (a - static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator-=(EnumType& a, EnumType b)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) - static_cast<DataType>(b));
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator-=(EnumType& a, DataType b)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) - b);
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType& operator-=(DataType& a, EnumType b)
 {
 	return (a -= static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType& operator--(EnumType& a)
 {
 	a = static_cast<EnumType>(static_cast<DataType>(a) - 1);
 	return a;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr DataType operator--(EnumType& a, int)
 {
 	EnumType ret = a;
@@ -1264,68 +1520,68 @@ inline constexpr DataType operator--(EnumType& a, int)
 	return ret;
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator<<(EnumType a, EnumType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) << static_cast<DataType>(b));
 }
 
 template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, 
-					typename std::enable_if<EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
+					typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
 inline constexpr DataType operator<<(DataType a, EnumType b)
 {
 	return (a << static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
 inline constexpr EnumType operator<<(EnumType a, DataType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) << b);
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators, int>::type = 0>
 inline constexpr EnumType operator>>(EnumType a, EnumType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) >> static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
 inline constexpr DataType operator>>(DataType a, EnumType b)
 {
 	return (a >> static_cast<DataType>(b));
 }
 
-template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
+template <typename EnumType, typename DataType = typename EnumeratorMeta<EnumType>::DataType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::math_operators && std::is_integral<DataType>::value, int>::type = 0>
 inline constexpr EnumType operator>>(EnumType a, DataType b)
 {
 	return static_cast<EnumType>(static_cast<DataType>(a) >> b);
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
 constexpr typename EnumeratorMeta<EnumType>::MaskType operator|(EnumType a, EnumType b)
 {
 	return (typename EnumeratorMeta<EnumType>::MaskType(a) | b);
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
 constexpr typename EnumeratorMeta<EnumType>::MaskType operator&(EnumType a, EnumType b)
 {
 	return (typename EnumeratorMeta<EnumType>::MaskType(a) & b);
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
 constexpr typename EnumeratorMeta<EnumType>::MaskType operator^(EnumType a, EnumType b)
 {
 	return (typename EnumeratorMeta<EnumType>::MaskType(a) ^ b);
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::logic_operators, int>::type = 0>
 constexpr typename EnumeratorMeta<EnumType>::MaskType operator~(EnumType a)
 {
 	return (~typename EnumeratorMeta<EnumType>::MaskType(a));
 }
 
-template <typename EnumType, typename std::enable_if<EnumeratorMeta<EnumType>::string_operators, int>::type = 0>
+template <typename EnumType, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::string_operators, int>::type = 0>
 inline std::ostream& operator<<(std::ostream& os, EnumType value)
 {
 	auto name = EnumeratorSerializer<EnumType>::get_name(value);
@@ -1336,7 +1592,7 @@ inline std::ostream& operator<<(std::ostream& os, EnumType value)
 	return os;
 }
 
-template <typename EnumType, size_t bit_length, typename std::enable_if<EnumeratorMeta<EnumType>::string_operators, int>::type = 0>
+template <typename EnumType, size_t bit_length, typename std::enable_if<std::is_enum<EnumType>::value && EnumeratorMeta<EnumType>::string_operators, int>::type = 0>
 inline std::ostream& operator<<(std::ostream&os, const EnumeratorMask<EnumType, bit_length>& value)
 {
 	using Meta = EnumeratorMeta<EnumType>;
@@ -1380,13 +1636,15 @@ public:
 	using MaskDataType = typename MaskType::DataType;
 	using MaskConverter = EnumeratorConverter<EnumType, MaskDataType, max_value, isFlags>;
 	static constexpr const bool bitwise_conversion = !isFlags;
+	static constexpr const EnumType MIN_VALUE = static_cast<EnumType>(0);
 	
 	struct EnumEntry
 	{
-		EnumType value;
-		const char* name;
-		const char* label;
+		EnumType value{};
+		const char* name{};
+		const char* label{};
 		
+		constexpr EnumEntry() = default;
 		constexpr EnumEntry(EnumType val, const char* name_) : value(val), name(name_), label("") { }
 		constexpr EnumEntry(EnumType val, const char* name_, const char* label_) : value(val), name(name_), label(label_) { }
 		
