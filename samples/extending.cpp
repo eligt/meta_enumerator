@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 	// prints: Is documentType1 registered by plugin: 1
 	
 	using Serializer = EnumeratorSerializer<DocumentType>;
-	std::cout << "Unserialized values " << (int)Serializer::get_value("documentType1") << ":" << Serializer::get_value("documentType1") << ", " << (int)Serializer::get_value("RICHTEXT") << ":" <<Serializer::get_value("RICHTEXT") << ", " << (int)Serializer::get_value("WAVE") << ":" <<Serializer::get_value("WAVE");
+	std::cout << "Unserialized values " << (int)Serializer::get_value("documentType1") << ":" << Serializer::get_value("documentType1") << ", " << (int)Serializer::get_value("RICHTEXT") << ":" << Serializer::get_value("RICHTEXT") << ", " << (int)Serializer::get_value("WAVE") << ":" << Serializer::get_value("WAVE");
 	// prints: Unserialized values 128:documentType1, 4:RICHTEXT, 3:WAVE
 	
 	std::cout << "\n";
