@@ -228,5 +228,3 @@ There's no limit to the amount of flags, other than of course the available RAM.
 Inheriting from an enum requires either defining a specially named value in your parent enum or a special field in its `EnumeratorMeta` specialization. Then, in the child enum, you set the first value to the value returned by the `Inheritor` type from the `EnumeratorMeta` (which corresponds to `EnumeratorInheritor`). You can then cast any of the child enum values to the parent enum using the `unary +` operator. 
 
 You can better see the requirements for this in the sample under [samples/extending.cpp](samples/extending.cpp) file.
-
-Please note that inheritance and extension are still incomplete, for instance, string conversion doesn't work on inheritance if you convert the value to the parent enum and it doesn't work at all for extensions as extensions don't yet support passing meta data for each newly registered value. I will add these features at a later point.
